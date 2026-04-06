@@ -38,6 +38,33 @@ Type: <type>
 | `issue-comment` | Issue Comment |
 | `spec-comment` | Spec Comment |
 | `pr-comment` | PR Comment |
+| `rd` | Requirements Definition |
+| `rd-comment` | RD Comment |
+
+### 設定例
+
+## Claude Code スキル
+
+gitcv を使った開発フローを Claude Code で効率化するスキルを提供しています。
+
+### スキル一覧
+
+| スキル | 説明 |
+|---|---|
+| `git-typed-commit` | タイプ付きコミットと git note の作成 |
+| `git-branch-strategy` | トランクベース階層ブランチ管理 |
+
+### ダウンロード
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/soukadao/gitcv/main/skills/install.sh | sh
+```
+
+インストール先を変更する場合は引数で指定できます。
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/soukadao/gitcv/main/skills/install.sh | sh -s -- /path/to/skills
+```
 
 ### 設定例
 

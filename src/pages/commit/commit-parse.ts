@@ -17,7 +17,9 @@ export type CommitType =
   | "pr"
   | "issue-comment"
   | "spec-comment"
-  | "pr-comment";
+  | "pr-comment"
+  | "rd"
+  | "rd-comment";
 
 export const COMMIT_LOG_ARGS = ["log", "--format=%H%n%an%n%aI%n%s%n%(trailers)%x01%N%x00"];
 
@@ -47,5 +49,5 @@ function parseTrailer(line: string): Trailer[] {
 }
 
 function isCommitType(value: string): value is CommitType {
-  return ["issue", "spec", "pr", "issue-comment", "spec-comment", "pr-comment"].includes(value);
+  return ["issue", "spec", "pr", "issue-comment", "spec-comment", "pr-comment", "rd", "rd-comment"].includes(value);
 }

@@ -19,6 +19,8 @@ const TRAILER_STYLE: Record<CommitType, { label: string; className: string }> = 
   "issue-comment": { label: "Issue Comment", className: "bg-rose-500/10 text-rose-500 dark:text-rose-300 ring-1 ring-rose-500/20" },
   "spec-comment": { label: "Spec Comment", className: "bg-sky-500/10 text-sky-500 dark:text-sky-300 ring-1 ring-sky-500/20" },
   "pr-comment": { label: "PR Comment", className: "bg-violet-500/10 text-violet-500 dark:text-violet-300 ring-1 ring-violet-500/20" },
+  rd: { label: "Requirements Definition", className: "bg-orange-500/10 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/20" },
+  "rd-comment": { label: "RD Comment", className: "bg-orange-500/10 text-orange-500 dark:text-orange-300 ring-1 ring-orange-500/20" },
 };
 
 export function CommitPage({ commits }: Props) {
@@ -90,7 +92,7 @@ function CommitRow({ commit }: { commit: Commit }) {
           </div>
           {/* Body */}
           <div className="px-3 py-2.5 bg-white dark:bg-zinc-900">
-            <div className="markdown-body !bg-transparent text-sm">
+            <div className="markdown-body bg-transparent! text-sm">
               <Markdown remarkPlugins={[remarkGfm]}>{commit.notes}</Markdown>
             </div>
           </div>
