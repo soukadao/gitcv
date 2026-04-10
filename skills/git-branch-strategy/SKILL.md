@@ -1,6 +1,7 @@
 ---
 name: git-branch-strategy
-description: "トランクベース開発のブランチ管理スキル。develop/<yyyymmdd>-<feature> の階層命名でタスク分解をブランチツリーに反映する。ブランチの作成・分解・マージの判断と実行を担う。"
+description: >
+  Use this skill when the user asks about branch naming conventions, how to create or structure branches for a feature or subtask, or how to merge a develop branch into main — because this skill defines the trunk-based branching strategy (develop/<yyyymmdd>-<feature> hierarchy) and provides the decision rules and commands for branch creation, decomposition, and trunk integration. Use it whenever the user is deciding where to branch from, what to name a branch (including where the date prefix goes), or how to bring a develop branch back into main. Do not use for commit-level operations like cherry-pick or rebase that don't involve branch structure decisions.
 ---
 
 # Git ブランチ戦略
