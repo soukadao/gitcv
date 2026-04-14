@@ -21,7 +21,7 @@ export type CommitType =
   | "rd"
   | "rd-comment";
 
-export const COMMIT_LOG_ARGS = ["log", "--format=%H%n%an%n%aI%n%s%n%(trailers)%x01%N%x00"];
+export const COMMIT_LOG_ARGS = ["log", "--reverse", "--format=%H%n%an%n%aI%n%s%n%(trailers)%x01%N%x00"];
 
 export function parseCommits(output: string): Commit[] {
   return output
