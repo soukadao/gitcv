@@ -1,7 +1,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useState } from "react";
-import type { Commit, CommitType } from "./commit-parse";
+import type { Commit, CommitType, BranchOrigin } from "./commit-parse";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -11,6 +11,8 @@ function formatDate(iso: string): string {
 
 interface Props {
   commits: Commit[];
+  origin: BranchOrigin | null;
+  onTreeClick: (hash: string) => void;
 }
 
 const TRAILER_STYLE: Record<CommitType, { label: string; className: string }> = {
@@ -24,8 +26,23 @@ const TRAILER_STYLE: Record<CommitType, { label: string; className: string }> = 
   "rd-comment": { label: "RD Comment", className: "bg-orange-500/10 text-orange-500 dark:text-orange-300 ring-1 ring-orange-500/20" },
 };
 
-export function CommitPage({ commits }: Props) {
-  if (commits.length === 0) {
+function BranchOriginBanner({ origin }: { origin: BranchOrigin }) {
+  return (
+    <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-md border border-violet-200 dark:border-violet-700/40 bg-violet-50 dark:bg-violet-900/20">
+      <svg className="w-3.5 h-3.5 text-violet-500 dark:text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v10M8 7l-3 3m3-3l3 3M16 17V7m0 10l3-3m-3 3l-3-3" />
+      </svg>
+      <span className="text-xs text-violet-700 dark:text-violet-300">
+        branched from{" "}
+        <code className="font-mono font-semibold">{origin.branch}</code>
+        <span className="ml-1 text-violet-400 dark:text-violet-500">({origin.hash.slice(0, 7)})</span>
+      </span>
+    </div>
+  );
+}
+
+export function CommitPage({ commits, origin, onTreeClick }: Props) {
+  if (commits.length === 0 && !origin) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-zinc-400 dark:text-zinc-600">
         <svg className="w-10 h-10 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -37,11 +54,14 @@ export function CommitPage({ commits }: Props) {
   }
 
   return (
-    <ol className="space-y-3">
-      {commits.map((commit) => (
-        <CommitRow key={commit.hash} commit={commit} />
-      ))}
-    </ol>
+    <div>
+      {origin && <BranchOriginBanner origin={origin} />}
+      <ol className="space-y-3">
+        {commits.map((commit) => (
+          <CommitRow key={commit.hash} commit={commit} onTreeClick={onTreeClick} />
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -79,7 +99,22 @@ function CopyButton({ hash }: { hash: string }) {
   );
 }
 
-function CommitRow({ commit }: { commit: Commit }) {
+function TreeButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="View in tree"
+      className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v10M8 7l-3 3m3-3l3 3M16 17V7m0 10l3-3m-3 3l-3-3" />
+      </svg>
+      <span>Tree</span>
+    </button>
+  );
+}
+
+function CommitRow({ commit, onTreeClick }: { commit: Commit; onTreeClick: (hash: string) => void }) {
   const initial = commit.author.charAt(0).toUpperCase();
 
   return (
@@ -109,6 +144,7 @@ function CommitRow({ commit }: { commit: Commit }) {
                 })}
               </div>
             )}
+            <TreeButton onClick={() => onTreeClick(commit.hash)} />
             <CopyButton hash={commit.hash} />
           </div>
         </div>

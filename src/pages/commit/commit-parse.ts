@@ -51,3 +51,13 @@ function parseTrailer(line: string): Trailer[] {
 function isCommitType(value: string): value is CommitType {
   return ["issue", "spec", "pr", "issue-comment", "spec-comment", "pr-comment", "rd", "rd-comment"].includes(value);
 }
+
+export interface BranchOrigin {
+  readonly branch: string;
+  readonly hash: string;
+}
+
+export interface CommitsResponse {
+  readonly commits: Commit[];
+  readonly origin: BranchOrigin | null;
+}
