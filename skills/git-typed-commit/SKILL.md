@@ -1,105 +1,168 @@
 ---
 name: git-typed-commit
-description: "開発フロー上の各フェーズ（rd/issue → spec → pr → pr-comment）に対応したタイプ付きgitコミットと、git noteを作成するスキル。"
+description: "gitcv v0.0.2のタスク管理用に、typed empty commitとgit notesでタスク登録、status変更、アサイン変更、仕様、意思決定、レビューを記録するスキル。"
 ---
 
-# Git タイプ付きコミット
+# Git タスクイベント
 
-## 開発フロー
+gitcv v0.0.2では、タスクの履歴をempty commit + git notesで記録する。
 
-タイプはフェーズごとに使い分ける。機能開発とバグ修正でフローの起点が異なる。
+empty commitはイベント識別子として扱う。
+git notesはユーザーとAIエージェントの双方が読む本文であり、先頭に機械可読なメタ情報を含める。
 
-### 機能開発
+## 基本方針
 
+- タスクは`Type: task`を持つempty commitで登録する。
+- タスクID、親子関係、関連ブランチ、アサイン、statusはnotesのメタ情報に記録する。
+- status変更、アサイン変更、仕様、意思決定、レビューは追加イベントとして記録する。
+- 既存notesは上書きせず、履歴を追加する。
+- `done`は記録しない。関連ブランチのHEADがmainまたは完了先ブランチに到達可能かどうかをgitcvが算出する。
+
+## イベントタイプ
+
+| type | 用途 |
+|---|---|
+| `task` | タスク登録 |
+| `status` | status変更 |
+| `assign` | アサイン変更 |
+| `spec` | 仕様、実装方針 |
+| `decision` | 意思決定 |
+| `review` | レビュー依頼、レビュー結果 |
+
+## status
+
+記録できるstatusは以下のみ。
+
+```yaml
+open: 未着手
+doing: 作業中
+blocked: 外部要因などで停止中
+review: レビュー待ち
+ready: 完了先ブランチへマージ可能
+closed: 対応しない、または中止
 ```
-rd → rd-comment
- ↓
-spec → spec-comment
- ↓
-coding（タイプなし通常コミット）
- ↓
-testing（タイプなし通常コミット）
- ↓
-pr（ブランチをリモートにpush）
- ↓
-pr-comment（レビュー）
+
+`done`はstatusとして記録しない。
+
+## notesメタ情報
+
+notesはfrontmatter風のメタ情報とMarkdown本文で構成する。
+
+```md
+---
+id: task-20260524-001
+title: 認証フローを実装する
+branch: feature/auth-flow
+parent:
+assignee: alice
+status: open
+---
+
+## 概要
+
+ログイン、ログアウト、セッション更新の基本フローを実装する。
 ```
 
-### バグ修正
+イベントが既存タスクに紐づく場合は`task`を指定する。
 
+```md
+---
+task: task-20260524-001
+status: doing
+---
+
+実装に着手する。
 ```
-issue → issue-comment
- ↓
-spec → spec-comment
- ↓
-coding（タイプなし通常コミット）
- ↓
-testing（タイプなし通常コミット）
- ↓
-pr（ブランチをリモートにpush）
- ↓
-pr-comment（レビュー）
-```
-
-## タイプ一覧
-
-| type | フェーズ | 意味 |
-|------|---------|------|
-| `rd` | 要求定義 | 機能開発の起点。要求・背景を記録 |
-| `rd-comment` | 要求定義 | rdへの追記・議論 |
-| `issue` | 課題定義 | バグ修正の起点。問題・再現手順を記録 |
-| `issue-comment` | 課題定義 | issueへの追記・議論 |
-| `spec` | 仕様定義 | 実装方針・仕様を記録 |
-| `spec-comment` | 仕様定義 | specへの追記・議論 |
-| `pr` | レビュー依頼 | ブランチをリモートにpushしてPRを記録 |
-| `pr-comment` | レビュー | レビューコメント・指摘を記録 |
 
 ## コマンド
 
-### コミットを作成
+### タスク登録
 
 ```bash
-git commit --allow-empty -m "<メッセージ>" --trailer "Type: <type>"
+git commit --allow-empty -m "<タスクタイトル>" --trailer "Type: task"
+git notes add -m "---
+id: <task-id>
+title: <タスクタイトル>
+branch: <branch>
+parent: <parent-task-id>
+assignee: <user>
+status: open
+---
+
+## 概要
+
+<本文>" HEAD
 ```
 
-### git noteを追加
+`parent`と`assignee`は任意。未アサインの場合は`assignee`を空にするか省略する。
+
+### status変更
 
 ```bash
-git notes add -m "<ノートメッセージ>" HEAD
+git commit --allow-empty -m "<status変更の要約>" --trailer "Type: status"
+git notes add -m "---
+task: <task-id>
+status: <open|doing|blocked|review|ready|closed>
+---
+
+<必要なら理由>" HEAD
 ```
 
-### prフェーズ（ブランチpush込み）
+statusイベントでは本文を省略してもよい。
+ビューアはstatusイベントを`open -> doing`のような遷移として表示する。
+
+### アサイン変更
+
+```bash
+git commit --allow-empty -m "<アサイン変更の要約>" --trailer "Type: assign"
+git notes add -m "---
+task: <task-id>
+assignee: <user>
+---
+
+<必要なら理由>" HEAD
+```
+
+未アサインに戻す場合は`assignee:`を空にする。
+
+### 仕様、意思決定、レビュー
+
+```bash
+git commit --allow-empty -m "<イベント要約>" --trailer "Type: spec"
+git notes add -m "---
+task: <task-id>
+---
+
+## 仕様
+
+<本文>" HEAD
+```
+
+`Type`は用途に応じて`spec`、`decision`、`review`を使う。
+
+## 共有
+
+タスク共有のため、関連ブランチとnotesはリモートへpushする。
 
 ```bash
 git push -u origin <branch>
-git commit --allow-empty -m "<PRの概要>" --trailer "Type: pr"
+git push origin refs/notes/*:refs/notes/*
 ```
 
-## 使用例
-
-**機能開発の起点：**
+他の環境で取得する場合:
 
 ```bash
-git commit --allow-empty -m "ユーザー認証フローを定義" --trailer "Type: rd"
-git notes add -m "## 背景\nログイン機能が未実装" HEAD
+git fetch origin refs/notes/*:refs/notes/*
 ```
 
-**仕様定義：**
+## 確認
+
+AIエージェントはCLIでタスクを確認する。
 
 ```bash
-git commit --allow-empty -m "認証APIの仕様" --trailer "Type: spec"
-git notes add -m "## エンドポイント\nPOST /auth/login" HEAD
-```
-
-**バグ修正の起点：**
-
-```bash
-git commit --allow-empty -m "ログイン時にトークンが二重発行される" --trailer "Type: issue"
-```
-
-**PRの作成：**
-
-```bash
-git push -u origin develop/20260406-user-auth
-git commit --allow-empty -m "ユーザー認証機能のPR" --trailer "Type: pr"
+gitcv task list --json
+gitcv task list --assignee <user> --json
+gitcv task list --unassigned --json
+gitcv task detail <task-id> --json
+gitcv task tree --json
 ```

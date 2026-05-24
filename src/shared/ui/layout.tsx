@@ -20,7 +20,7 @@ export function Layout({ children }: Props) {
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
       <header className="border-b border-gray-200 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-3.5 flex items-center justify-between">
+        <div className="w-full max-w-screen-2xl mx-auto px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <svg
               className="w-5 h-5 text-violet-500 dark:text-violet-400 shrink-0"
@@ -56,7 +56,7 @@ export function Layout({ children }: Props) {
           </button>
         </div>
       </header>
-      <main className="max-w-4xl mx-auto px-6 py-6">{children}</main>
+      <main className="w-full max-w-screen-2xl mx-auto px-6 py-6">{children}</main>
     </div>
   );
 }

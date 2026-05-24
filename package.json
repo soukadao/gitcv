@@ -1,7 +1,7 @@
 {
   "name": "gitcv",
-  "description": "Git commit viewer",
-  "version": "0.0.1",
+  "description": "Git task viewer",
+  "version": "0.0.2",
   "type": "module",
   "bin": {
     "gitcv": "./src/app/cli.ts"
@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build"
+    "build": "tsc -b && vite build",
+    "test": "bun test"
   },
   "dependencies": {
     "github-markdown-css": "^5.9.0",

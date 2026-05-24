@@ -4,6 +4,7 @@ import { execute } from "../shared/executor";
 import { parseCommits, COMMIT_LOG_ARGS } from "../pages/commit/commit-parse";
 import type { BranchOrigin, CommitsResponse } from "../pages/commit/commit-parse";
 import { parseGraphOutput } from "../pages/graph/graph-parse";
+import { buildTaskTree, collectTasks } from "../pages/task/task-parse";
 
 async function detectOrigin(
   cwd: string,
@@ -67,6 +68,18 @@ export function createApp(cwd: string, distDir: string) {
       { cwd }
     );
     return c.json(parseGraphOutput(output));
+  });
+
+  app.get("/api/tasks", async (c) => {
+    const assignee = c.req.query("assignee") || undefined;
+    const unassigned = c.req.query("unassigned") === "1";
+    const tasks = await collectTasks(cwd, { assignee, unassigned });
+    return c.json({ tasks });
+  });
+
+  app.get("/api/tasks/tree", async (c) => {
+    const tasks = await collectTasks(cwd);
+    return c.json({ tree: buildTaskTree(tasks) });
   });
 
   app.use("*", async (c) => {

@@ -12,6 +12,11 @@ export interface Trailer {
 }
 
 export type CommitType =
+  | "task"
+  | "status"
+  | "assign"
+  | "review"
+  | "decision"
   | "issue"
   | "spec"
   | "pr"
@@ -49,7 +54,21 @@ function parseTrailer(line: string): Trailer[] {
 }
 
 function isCommitType(value: string): value is CommitType {
-  return ["issue", "spec", "pr", "issue-comment", "spec-comment", "pr-comment", "rd", "rd-comment"].includes(value);
+  return [
+    "task",
+    "status",
+    "assign",
+    "review",
+    "decision",
+    "issue",
+    "spec",
+    "pr",
+    "issue-comment",
+    "spec-comment",
+    "pr-comment",
+    "rd",
+    "rd-comment",
+  ].includes(value);
 }
 
 export interface BranchOrigin {

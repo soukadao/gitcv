@@ -1,7 +1,18 @@
-.DS_Store
+.idea
+.vscode
 
-node_modules/
+.DS_Store
 
 dist/
 
 .claude
+.mcp.json
+
+.agents
+.codex
+
+apm.yml
+apm.lock.yaml
+apm_modules/
+
+node_modules/
