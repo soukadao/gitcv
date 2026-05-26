@@ -1,7 +1,7 @@
 {
   "name": "gitcv",
   "description": "Git task viewer",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "bin": {
     "gitcv": "./src/app/cli.ts"

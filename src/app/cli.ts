@@ -114,7 +114,7 @@ function printTaskList(tasks: TaskSummary[]) {
     const done = task.done ? "done" : "not_done";
     const assignee = task.assignee ?? "unassigned";
     const branch = task.branch ?? "no-branch";
-    console.log(`${task.id}\t${task.status}\t${done}\t${assignee}\t${branch}\t${task.title}`);
+    console.log(`${task.id}\t${task.status}\t${done}\t${assignee}\t${branch}\tunresolved:${task.unresolvedRequestCount}\t${task.title}`);
   }
 }
 
@@ -135,9 +135,18 @@ function printTaskDetail(task: TaskSummary) {
   console.log(`assignee: ${task.assignee ?? "unassigned"}`);
   console.log(`branch: ${task.branch ?? "none"}`);
   console.log(`parent: ${task.parent ?? "none"}`);
+  console.log(`parent_branch: ${task.parentBranch ?? "none"}`);
+  console.log(`unresolved_requests: ${task.unresolvedRequestCount}`);
   console.log(`source_commit: ${task.sourceCommit}`);
   console.log(`latest_event: ${task.latestEvent}`);
   console.log("");
+  if (task.requestThreads.length > 0) {
+    console.log("request_threads:");
+    for (const thread of task.requestThreads) {
+      console.log(`- ${thread.thread} ${thread.status} latest:${thread.latestRequestId} resolution:${thread.resolution ?? "none"}`);
+    }
+    console.log("");
+  }
   for (const event of task.events) {
     console.log(`- ${event.type} ${event.hash.slice(0, 7)} ${event.date} ${event.message}`);
   }

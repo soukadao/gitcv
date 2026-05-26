@@ -16,11 +16,15 @@ interface Props {
 }
 
 const TRAILER_STYLE: Record<CommitType, { label: string; className: string }> = {
+  work: { label: "Work", className: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-300 ring-1 ring-zinc-500/20" },
   task: { label: "Task", className: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-300 ring-1 ring-zinc-500/20" },
+  requirement: { label: "Requirement", className: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/20" },
   status: { label: "Status", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20" },
   assign: { label: "Assign", className: "bg-teal-500/10 text-teal-600 dark:text-teal-400 ring-1 ring-teal-500/20" },
   review: { label: "Review", className: "bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/20" },
   decision: { label: "Decision", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/20" },
+  implementation: { label: "Implementation", className: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 ring-1 ring-fuchsia-500/20" },
+  fix: { label: "Fix", className: "bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20" },
   issue: { label: "Issue", className: "bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20" },
   spec: { label: "Spec", className: "bg-sky-500/10 text-sky-600 dark:text-sky-400 ring-1 ring-sky-500/20" },
   pr: { label: "PR", className: "bg-violet-500/10 text-violet-600 dark:text-violet-400 ring-1 ring-violet-500/20" },

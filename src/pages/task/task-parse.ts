@@ -3,12 +3,16 @@ import { execute } from "../../shared/executor";
 export type TaskStatus = "open" | "doing" | "blocked" | "review" | "ready" | "closed";
 
 export type TaskEventType =
+  | "work"
   | "task"
+  | "requirement"
   | "status"
   | "assign"
   | "spec"
   | "review"
   | "decision"
+  | "implementation"
+  | "fix"
   | "issue"
   | "issue-comment"
   | "spec-comment"
@@ -29,15 +33,28 @@ export interface TaskEvent {
   readonly toStatus?: TaskStatus;
 }
 
+export interface RequestThreadSummary {
+  readonly thread: string;
+  readonly latestRequestId: string;
+  readonly status: "unresolved" | "addressed" | "accepted";
+  readonly requestEvent: string;
+  readonly responseEvent: string | null;
+  readonly verdictEvent: string | null;
+  readonly resolution: string | null;
+}
+
 export interface TaskSummary {
   readonly id: string;
   readonly title: string;
   readonly parent: string | null;
+  readonly parentBranch: string | null;
   readonly branch: string | null;
   readonly branchHead: string | null;
   readonly assignee: string | null;
   readonly status: TaskStatus;
   readonly done: boolean;
+  readonly unresolvedRequestCount: number;
+  readonly requestThreads: RequestThreadSummary[];
   readonly doneRefs: string[];
   readonly mergedToDoneRef: boolean;
   readonly sourceCommit: string;
@@ -83,12 +100,16 @@ const TASK_LOG_ARGS = [
 
 const STATUSES = new Set<TaskStatus>(["open", "doing", "blocked", "review", "ready", "closed"]);
 const TASK_EVENT_TYPES = new Set<TaskEventType>([
+  "work",
   "task",
+  "requirement",
   "status",
   "assign",
   "spec",
   "review",
   "decision",
+  "implementation",
+  "fix",
   "issue",
   "issue-comment",
   "spec-comment",
@@ -132,8 +153,9 @@ export function buildTaskTree(tasks: TaskSummary[]): TaskTreeNode[] {
   const roots: TaskTreeNode[] = [];
 
   for (const node of nodes.values()) {
-    if (node.parent && nodes.has(node.parent)) {
-      nodes.get(node.parent)!.children.push(node);
+    const parentId = node.parent || branchWorkId(node.parentBranch ?? undefined);
+    if (parentId && nodes.has(parentId)) {
+      nodes.get(parentId)!.children.push(node);
     } else {
       roots.push(node);
     }
@@ -221,8 +243,10 @@ function toTaskEvent(event: RawEvent): TaskEvent[] {
 }
 
 function taskIdForEvent(type: TaskEventType, event: RawEvent): string | null {
-  if (type === "task") return event.meta.id || event.meta.task || event.hash.slice(0, 12);
-  return event.meta.task || event.meta.id || null;
+  if (type === "task" || type === "work") {
+    return event.meta.work || event.meta.id || event.meta.task || branchWorkId(event.meta.branch) || event.hash.slice(0, 12);
+  }
+  return event.meta.work || event.meta.task || branchWorkId(event.meta.branch) || event.meta.id || null;
 }
 
 function isTaskEventType(value: string | undefined): value is TaskEventType {
@@ -261,25 +285,34 @@ async function buildTaskSummary(
   const first = events[0];
   const latest = events[events.length - 1];
   const taskEvent = events.find((event) => event.type === "task") ?? first;
-  const id = taskEvent.meta.id || taskEvent.meta.task;
+  const id = taskEvent.meta.work ||
+    taskEvent.meta.id ||
+    taskEvent.meta.task ||
+    branchWorkId(taskEvent.meta.branch) ||
+    taskEvent.hash.slice(0, 12);
   const title = latestValue(events, "title") || taskEvent.message;
   const parent = emptyToNull(latestValue(events, "parent"));
+  const parentBranch = emptyToNull(latestValue(events, "parent_branch") || latestValue(events, "parent-branch"));
   const branch = emptyToNull(latestValue(events, "branch"));
   const assignee = emptyToNull(latestValue(events, "assignee") || latestValue(events, "assignees"));
   const status = latestStatus(events);
   const branchHead = branch ? await resolveRef(cwd, branch) : null;
   const mergedRefs = branchHead ? await refsContaining(cwd, branchHead, doneRefs) : [];
   const done = status !== "closed" && mergedRefs.length > 0;
+  const requestThreads = summarizeRequestThreads(events);
 
   return {
     id,
     title,
     parent,
+    parentBranch,
     branch,
     branchHead,
     assignee,
     status,
     done,
+    unresolvedRequestCount: requestThreads.filter((thread) => thread.status === "unresolved").length,
+    requestThreads,
     doneRefs: mergedRefs,
     mergedToDoneRef: done,
     sourceCommit: taskEvent.hash,
@@ -287,6 +320,94 @@ async function buildTaskSummary(
     updatedAt: latest.date,
     events: withStatusTransitions(events),
   };
+}
+
+function branchWorkId(branch: string | undefined): string | null {
+  return branch ? `branch:${branch}` : null;
+}
+
+function summarizeRequestThreads(events: TaskEvent[]): RequestThreadSummary[] {
+  interface MutableThread {
+    thread: string;
+    latestRequestId: string;
+    requestEvent: string;
+    responseEvent: string | null;
+    verdictEvent: string | null;
+    resolution: string | null;
+  }
+
+  const threads = new Map<string, MutableThread>();
+  const requestToThread = new Map<string, string>();
+  const responseToThread = new Map<string, string>();
+
+  for (const event of events) {
+    const id = event.meta.id;
+    const threadId = event.meta.thread || id;
+
+    if (isRequestEvent(event) && id && threadId) {
+      threads.set(threadId, {
+        thread: threadId,
+        latestRequestId: id,
+        requestEvent: event.hash,
+        responseEvent: null,
+        verdictEvent: null,
+        resolution: null,
+      });
+      requestToThread.set(id, threadId);
+    }
+
+    for (const requestId of splitRefs(event.meta.addresses)) {
+      const addressedThread = requestToThread.get(requestId) || event.meta.thread;
+      if (!addressedThread) continue;
+      const thread = threads.get(addressedThread);
+      if (!thread) continue;
+      thread.responseEvent = event.hash;
+      thread.resolution = event.meta.resolution || "addressed";
+      if (event.meta.id) responseToThread.set(event.meta.id, addressedThread);
+    }
+
+    for (const responseId of splitRefs(event.meta.accepts)) {
+      const acceptedThread = event.meta.thread || responseToThread.get(responseId) || requestToThread.get(responseId);
+      if (!acceptedThread) continue;
+      const thread = threads.get(acceptedThread);
+      if (!thread) continue;
+      thread.verdictEvent = event.hash;
+      thread.resolution = event.meta.resolution || "accepted";
+    }
+
+    for (const responseId of splitRefs(event.meta.rejects)) {
+      const rejectedThread = event.meta.thread || responseToThread.get(responseId) || requestToThread.get(responseId);
+      if (!rejectedThread) continue;
+      const thread = threads.get(rejectedThread);
+      if (!thread) continue;
+      thread.verdictEvent = event.hash;
+      thread.resolution = event.meta.resolution || "rejected";
+    }
+  }
+
+  return [...threads.values()].map((thread) => ({
+    ...thread,
+    status: requestThreadStatus(thread),
+  }));
+}
+
+function requestThreadStatus(thread: { responseEvent: string | null; resolution: string | null }): RequestThreadSummary["status"] {
+  if (thread.resolution === "accepted") return "accepted";
+  if (thread.resolution === "rejected") return "unresolved";
+  if (thread.responseEvent) return "addressed";
+  return "unresolved";
+}
+
+function isRequestEvent(event: TaskEvent): boolean {
+  return event.meta.role === "request" ||
+    (event.meta.request_status === "open") ||
+    ["spec-comment", "issue-comment", "pr-comment", "rd-comment", "review"].includes(event.type);
+}
+
+function splitRefs(value: string | undefined): string[] {
+  return value
+    ? value.split(",").map((item) => item.trim()).filter(Boolean)
+    : [];
 }
 
 function latestValue(events: TaskEvent[], key: string): string | null {

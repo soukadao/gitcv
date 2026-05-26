@@ -17,12 +17,16 @@ const STATUS_STYLE: Record<TaskStatus, string> = {
 };
 
 const EVENT_STYLE: Record<string, string> = {
+  work: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
   task: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
+  requirement: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-200",
   status: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200",
   assign: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200",
   spec: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200",
   review: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
   decision: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200",
+  implementation: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-200",
+  fix: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200",
 };
 
 type DoneFilter = "all" | "done" | "not_done";
@@ -72,6 +76,7 @@ export function TaskPage({ tasks }: Props) {
       ready: tasks.filter((task) => task.status === "ready" && !task.done).length,
       done: tasks.filter((task) => task.done).length,
       unassigned: tasks.filter((task) => !task.assignee).length,
+      unresolved: tasks.reduce((count, task) => count + task.unresolvedRequestCount, 0),
     }),
     [tasks]
   );
@@ -82,7 +87,7 @@ export function TaskPage({ tasks }: Props) {
         <svg className="w-10 h-10 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
         </svg>
-        <p className="text-sm">No tasks found</p>
+        <p className="text-sm">No work branches found</p>
       </div>
     );
   }
@@ -130,6 +135,7 @@ function TaskToolbar({
     readonly ready: number;
     readonly done: number;
     readonly unassigned: number;
+    readonly unresolved: number;
   };
   readonly shownCount: number;
   readonly query: string;
@@ -147,7 +153,7 @@ function TaskToolbar({
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Tasks</h1>
+            <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Work branches</h1>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
               {shownCount} shown / {counts.total} total
             </p>
@@ -157,13 +163,13 @@ function TaskToolbar({
             <SummaryPill label="ready" value={counts.ready} />
             <SummaryPill label="blocked" value={counts.blocked} />
             <SummaryPill label="done" value={counts.done} />
-            <SummaryPill label="unassigned" value={counts.unassigned} />
+            <SummaryPill label="unresolved" value={counts.unresolved} />
           </div>
         </div>
       </div>
       <div className="grid gap-3 p-3 md:grid-cols-[1fr_160px_160px_180px]">
         <label className="relative">
-          <span className="sr-only">Search tasks</span>
+          <span className="sr-only">Search work branches</span>
           <input
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
@@ -264,7 +270,7 @@ function TaskList({
   return (
     <aside className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white dark:bg-zinc-900">
       <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
-        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Task list</p>
+        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Branch list</p>
       </div>
       <ol className="max-h-[72vh] overflow-auto divide-y divide-zinc-200 dark:divide-zinc-800">
         {tasks.map((task) => (
@@ -288,6 +294,12 @@ function TaskList({
                 <span className="truncate">{task.assignee ?? "unassigned"}</span>
                 <span>·</span>
                 <DoneBadge done={task.done} />
+                {task.unresolvedRequestCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="text-amber-600 dark:text-amber-300">{task.unresolvedRequestCount} unresolved</span>
+                  </>
+                )}
               </div>
             </button>
           </li>
@@ -300,7 +312,7 @@ function TaskList({
 function NoFilteredTasks() {
   return (
     <div className="rounded-md border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-8 text-center">
-      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">No tasks match the current filters</p>
+      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">No work branches match the current filters</p>
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Adjust search, status, done, or assignee.</p>
     </div>
   );
@@ -325,8 +337,11 @@ function TaskDetail({ task }: { readonly task: TaskSummary }) {
             <MetaPill label="assignee" value={task.assignee ?? "unassigned"} />
             <MetaPill label="branch" value={task.branch ?? "none"} />
             {task.parent && <MetaPill label="parent" value={task.parent} />}
+            {task.parentBranch && <MetaPill label="parent_branch" value={task.parentBranch} />}
+            {task.unresolvedRequestCount > 0 && <MetaPill label="unresolved" value={String(task.unresolvedRequestCount)} />}
           </div>
         </div>
+        {task.requestThreads.length > 0 && <RequestThreads task={task} />}
         <ol className="px-4 py-4 space-y-3">
           {task.events.map((event) => (
             <TimelineEvent key={event.hash} event={event} />
@@ -336,6 +351,36 @@ function TaskDetail({ task }: { readonly task: TaskSummary }) {
       </div>
     </section>
   );
+}
+
+function RequestThreads({ task }: { readonly task: TaskSummary }) {
+  return (
+    <div className="border-b border-zinc-200 dark:border-zinc-700 px-4 py-3">
+      <h3 className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Request threads</h3>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {task.requestThreads.map((thread) => (
+          <div key={thread.thread} className="rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <code className="truncate font-mono text-zinc-600 dark:text-zinc-300">{thread.thread}</code>
+              <span className={`shrink-0 rounded-full px-1.5 py-0.5 font-medium ${requestThreadStyle(thread.status)}`}>
+                {thread.status}
+              </span>
+            </div>
+            <p className="mt-1 truncate text-zinc-500 dark:text-zinc-400">
+              latest {thread.latestRequestId}
+              {thread.resolution ? ` · ${thread.resolution}` : ""}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function requestThreadStyle(status: TaskSummary["requestThreads"][number]["status"]): string {
+  if (status === "accepted") return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  if (status === "addressed") return "bg-sky-500/10 text-sky-700 dark:text-sky-300";
+  return "bg-amber-500/10 text-amber-700 dark:text-amber-300";
 }
 
 function TimelineEvent({ event }: { readonly event: TaskEvent }) {
@@ -379,7 +424,7 @@ function GitDetails({ task }: { readonly task: TaskSummary }) {
         Git details
       </summary>
       <dl className="grid gap-3 px-4 pb-4 text-xs sm:grid-cols-2 xl:grid-cols-3">
-        <Fact label="task_id" value={task.id} />
+        <Fact label="work_id" value={task.id} />
         <Fact label="branch_head" value={task.branchHead?.slice(0, 12) ?? "unknown"} />
         <Fact label="source_commit" value={task.sourceCommit.slice(0, 12)} />
         <Fact label="latest_event" value={task.latestEvent.slice(0, 12)} />

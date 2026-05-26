@@ -87,6 +87,78 @@ describe("collectTasks", () => {
     expect(mergedAuth?.done).toBe(true);
     expect(mergedAuth?.doneRefs).toContain("main");
   });
+
+  test("groups branch work events and summarizes request loops", async () => {
+    git("switch", "-c", "feature/profile");
+    commitEvent("プロフィール改善を開始", "work", [
+      "---",
+      "branch: feature/profile",
+      "parent_branch: main",
+      "title: プロフィール改善",
+      "status: doing",
+      "---",
+      "",
+      "プロフィール表示の要件定義から実装までを扱う。",
+    ].join("\n"));
+    commitEvent("プロフィール仕様案を記録", "spec", [
+      "---",
+      "branch: feature/profile",
+      "---",
+      "",
+      "肩書きと自己紹介を表示する。",
+    ].join("\n"));
+    commitEvent("プロフィール仕様の改善要求", "spec-comment", [
+      "---",
+      "branch: feature/profile",
+      "id: req-001",
+      "thread: profile-copy",
+      "role: request",
+      "---",
+      "",
+      "肩書きが長い場合の表示を決めてほしい。",
+    ].join("\n"));
+    commitEvent("プロフィール仕様を修正", "spec", [
+      "---",
+      "branch: feature/profile",
+      "id: res-001",
+      "thread: profile-copy",
+      "role: response",
+      "addresses: req-001",
+      "resolution: fixed",
+      "---",
+      "",
+      "肩書きは2行で省略する。",
+    ].join("\n"));
+    commitEvent("プロフィール仕様の追加改善要求", "spec-comment", [
+      "---",
+      "branch: feature/profile",
+      "id: req-002",
+      "thread: profile-copy",
+      "role: request",
+      "responds_to: res-001",
+      "---",
+      "",
+      "2行省略時の全文確認手段も必要。",
+    ].join("\n"));
+
+    const tasks = await collectTasks(cwd);
+    const work = tasks.find((task) => task.id === "branch:feature/profile");
+
+    expect(work?.title).toBe("プロフィール改善");
+    expect(work?.parentBranch).toBe("main");
+    expect(work?.unresolvedRequestCount).toBe(1);
+    expect(work?.requestThreads).toEqual([
+      {
+        thread: "profile-copy",
+        latestRequestId: "req-002",
+        status: "unresolved",
+        requestEvent: expect.any(String),
+        responseEvent: null,
+        verdictEvent: null,
+        resolution: null,
+      },
+    ]);
+  });
 });
 
 function commitEvent(message: string, type: string, note: string) {

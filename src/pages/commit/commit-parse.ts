@@ -12,11 +12,15 @@ export interface Trailer {
 }
 
 export type CommitType =
+  | "work"
   | "task"
+  | "requirement"
   | "status"
   | "assign"
   | "review"
   | "decision"
+  | "implementation"
+  | "fix"
   | "issue"
   | "spec"
   | "pr"
@@ -55,11 +59,15 @@ function parseTrailer(line: string): Trailer[] {
 
 function isCommitType(value: string): value is CommitType {
   return [
+    "work",
     "task",
+    "requirement",
     "status",
     "assign",
     "review",
     "decision",
+    "implementation",
+    "fix",
     "issue",
     "spec",
     "pr",

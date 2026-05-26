@@ -1,24 +1,25 @@
 ---
 name: git-branch-strategy
 description: >
-  Use this skill when deciding how to create, associate, push, or merge branches for gitcv v0.0.2 tasks. The skill treats one task as one branch, but does not impose a branch naming convention; task identity, parent relation, assignee, and status are recorded in git notes metadata.
+  Use this skill when deciding how to create, associate, push, or merge branches for gitcv branch-based work records. The skill treats one branch as one work timeline and records parent relationships with parent_branch metadata.
 ---
 
-# Git タスクブランチ戦略
+# Git ブランチ作業戦略
 
-gitcv v0.0.2では、作業単位を`1タスク = 1ブランチ`として扱う。
+gitcvでは、作業単位を`1ブランチ = 1つの仕事の流れ`として扱う。
 
-ただし、ブランチ命名規則は組織ごとに異なるため、gitcvはブランチ名からタスクIDや親子関係を決定しない。
-タスクID、親子関係、関連ブランチ、アサイン、statusはgit notesのメタ情報で明示する。
+要件定義、仕様、意思決定、実装、レビュー、修正対応は、同じ作業ブランチ上のtyped commit + git notesとして記録する。
+親子関係は外部タスク管理ツールではなく、ブランチの派生と`parent_branch`メタ情報で表す。
 
 ## 原則
 
-- ブランチはタスクの作業場所。
-- タスクIDはブランチ名ではなく、`Type: task`イベントのnotesメタ情報に記録する。
-- 親子関係はブランチ名から推定せず、`parent`メタ情報で記録する。
-- アサインは任意。未アサインのタスクも有効。
+- ブランチは作業単位であり、開発記録のタイムライン。
+- ブランチ作業は`Type: work`イベントで開始する。
+- 表示上の親子関係は`parent_branch`に明示する。
+- 要件、仕様、決定、実装、レビュー、修正対応は同じブランチに追加イベントとして積む。
+- リクエストと対応は`thread`、`role`、`addresses`、`accepts`で結びつける。
 - `done`は記録しない。関連ブランチのHEADがmainまたは完了先ブランチに取り込まれているかをgitcvが判定する。
-- タスク共有のため、関連ブランチとgit notesをリモートへpushする。
+- ブランチ作業共有のため、関連ブランチとgit notesをリモートへpushする。
 
 ## ブランチ命名
 
@@ -34,11 +35,12 @@ ticket/ABC-123: チケット番号ベース
 release/0.0.2: リリース作業
 ```
 
-gitcvはこれらの名前からタスク種別や親子関係を推定しない。
+gitcvはこれらの名前から作業種別を推定しない。
+ただし、ブランチ名そのものは作業単位のidentityとして扱う。
 
 ## ブランチ作成
 
-独立したタスクは通常、mainまたは組織で定めたベースブランチから作成する。
+独立した作業は通常、mainまたは組織で定めたベースブランチから作成する。
 
 ```bash
 git switch main
@@ -46,38 +48,36 @@ git pull --ff-only
 git switch -c <branch>
 ```
 
-親タスクに強く依存する子タスクは、親タスクのブランチから作成してよい。
+親ブランチに強く依存する作業は、親ブランチから子ブランチを作成してよい。
 
 ```bash
 git switch <parent-branch>
 git switch -c <child-branch>
 ```
 
-ただし、親子関係は必ずタスクnotesの`parent`に記録する。
+その場合も、表示上の親子関係は`parent_branch`に記録する。
 
 ```md
 ---
-id: task-child
-title: 子タスク
 branch: <child-branch>
-parent: task-parent
-status: open
+parent_branch: <parent-branch>
+title: 子ブランチ作業
+status: doing
 ---
 ```
 
-## タスク登録との関係
+## 作業開始イベント
 
-ブランチを作成したら、同じブランチ上で`Type: task`イベントを作成する。
+ブランチを作成したら、同じブランチ上で`Type: work`イベントを作成する。
 
 ```bash
-git commit --allow-empty -m "<タスクタイトル>" --trailer "Type: task"
+git commit --allow-empty -m "<作業タイトル>" --trailer "Type: work"
 git notes add -m "---
-id: <task-id>
-title: <タスクタイトル>
 branch: <branch>
-parent: <parent-task-id>
+parent_branch: <parent-branch>
+title: <作業タイトル>
 assignee: <user>
-status: open
+status: doing
 ---
 
 ## 概要
@@ -85,42 +85,60 @@ status: open
 <本文>" HEAD
 ```
 
-`branch`には実際の作業ブランチ名を記録する。
-`parent`と`assignee`は任意。
+`parent_branch`と`assignee`は任意。
 
-## 共有
+## リクエストループ
 
-タスクはリモートリポジトリで共有される前提。
-ブランチだけでなくnotesもpushする。
+ユーザーが仕様や実装への改善要求を出す場合は、同じブランチにコメントイベントを追加する。
 
 ```bash
-git push -u origin <branch>
-git push origin refs/notes/*:refs/notes/*
+git commit --allow-empty -m "<改善要求>" --trailer "Type: spec-comment"
+git notes add -m "---
+branch: <branch>
+id: req-001
+thread: <topic>
+role: request
+---
+
+<本文>" HEAD
 ```
 
-他の環境ではnotesをfetchする。
+エージェントが対応した場合は、`addresses`で具体的なrequestを指す。
 
 ```bash
-git fetch origin refs/notes/*:refs/notes/*
+git commit --allow-empty -m "<対応内容>" --trailer "Type: fix"
+git notes add -m "---
+branch: <branch>
+id: res-001
+thread: <topic>
+role: response
+addresses: req-001
+resolution: fixed
+---
+
+<本文>" HEAD
 ```
+
+同じ`thread`に新しい`role: request`が追加された場合、最新requestが未解決として扱われる。
+対応イベントが追加されると`addressed`、`accepts`を持つ判定イベントが追加されると`accepted`として扱われる。
 
 ## 完了判定
 
 手動で`status: done`は記録しない。
 
-タスクの関連ブランチHEADがmainまたは完了先ブランチに到達可能な場合、gitcvが`done`として扱う。
+作業ブランチHEADがmainまたは完了先ブランチに到達可能な場合、gitcvが`done`として扱う。
 
 概念的には以下の判定を行う。
 
 ```bash
-git merge-base --is-ancestor <task-branch-head> main
+git merge-base --is-ancestor <branch-head> main
 ```
 
 まとめてリリースする運用では、releaseブランチなどの完了先ブランチに取り込まれているかを確認する。
 
 ## マージ
 
-タスクが`ready`になったら、組織の運用に従ってmainまたはリリース用ブランチへマージする。
+ブランチ作業が`ready`になったら、組織の運用に従ってmainまたはリリース用ブランチへマージする。
 
 ```bash
 git switch main
@@ -128,17 +146,16 @@ git pull --ff-only
 git merge --ff-only <branch>
 ```
 
-または、組織がsquash mergeを採用している場合はその運用に従う。
-ただし、squash mergeでは元ブランチHEADがmainに到達可能にならないため、gitcvの`done`判定ルールと合うか確認する。
+squash mergeでは元ブランチHEADがmainに到達可能にならないため、gitcvの`done`判定ルールと合うか確認する。
 
 ## AIエージェントの作業開始
 
-AIエージェントはブランチ名ではなくCLIで作業対象を選ぶ。
+AIエージェントはCLIで作業対象を選ぶ。
 
 ```bash
 gitcv task list --assignee <user> --json
 gitcv task list --unassigned --json
-gitcv task detail <task-id> --json
+gitcv task detail branch:<branch> --json
 ```
 
 作業対象を決めたら、`branch`メタ情報のブランチへ移動する。
