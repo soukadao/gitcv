@@ -5,6 +5,10 @@ import type { TaskEvent, TaskStatus, TaskSummary } from "./task-parse";
 
 interface Props {
   readonly tasks: TaskSummary[];
+  readonly isRefreshing: boolean;
+  readonly refreshError: string | null;
+  readonly lastUpdatedAt: Date | null;
+  readonly onRefresh: () => void;
 }
 
 const STATUS_STYLE: Record<TaskStatus, string> = {
@@ -33,7 +37,7 @@ type DoneFilter = "all" | "done" | "not_done";
 type StatusFilter = "all" | TaskStatus;
 type AssigneeFilter = "all" | "unassigned" | string;
 
-export function TaskPage({ tasks }: Props) {
+export function TaskPage({ tasks, isRefreshing, refreshError, lastUpdatedAt, onRefresh }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -87,7 +91,8 @@ export function TaskPage({ tasks }: Props) {
         <svg className="w-10 h-10 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
         </svg>
-        <p className="text-sm">No work branches found</p>
+        <p className="text-sm">{isRefreshing ? "Loading work branches" : "No work branches found"}</p>
+        {refreshError && <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">{refreshError}</p>}
       </div>
     );
   }
@@ -102,10 +107,14 @@ export function TaskPage({ tasks }: Props) {
         doneFilter={doneFilter}
         assigneeFilter={assigneeFilter}
         assignees={assignees}
+        isRefreshing={isRefreshing}
+        refreshError={refreshError}
+        lastUpdatedAt={lastUpdatedAt}
         onQueryChange={setQuery}
         onStatusChange={setStatusFilter}
         onDoneChange={setDoneFilter}
         onAssigneeChange={setAssigneeFilter}
+        onRefresh={onRefresh}
       />
       <div className="grid gap-4 lg:grid-cols-[minmax(280px,380px)_1fr] min-h-[70vh]">
         <TaskList tasks={filteredTasks} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
@@ -123,10 +132,14 @@ function TaskToolbar({
   doneFilter,
   assigneeFilter,
   assignees,
+  isRefreshing,
+  refreshError,
+  lastUpdatedAt,
   onQueryChange,
   onStatusChange,
   onDoneChange,
   onAssigneeChange,
+  onRefresh,
 }: {
   readonly counts: {
     readonly total: number;
@@ -143,10 +156,14 @@ function TaskToolbar({
   readonly doneFilter: DoneFilter;
   readonly assigneeFilter: AssigneeFilter;
   readonly assignees: string[];
+  readonly isRefreshing: boolean;
+  readonly refreshError: string | null;
+  readonly lastUpdatedAt: Date | null;
   readonly onQueryChange: (value: string) => void;
   readonly onStatusChange: (value: StatusFilter) => void;
   readonly onDoneChange: (value: DoneFilter) => void;
   readonly onAssigneeChange: (value: AssigneeFilter) => void;
+  readonly onRefresh: () => void;
 }) {
   return (
     <section className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden">
@@ -158,12 +175,46 @@ function TaskToolbar({
               {shownCount} shown / {counts.total} total
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-            <SummaryPill label="active" value={counts.active} />
-            <SummaryPill label="ready" value={counts.ready} />
-            <SummaryPill label="blocked" value={counts.blocked} />
-            <SummaryPill label="done" value={counts.done} />
-            <SummaryPill label="unresolved" value={counts.unresolved} />
+          <div className="flex flex-col gap-3 xl:items-end">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <span
+                className={`inline-flex h-2 w-2 rounded-full ${
+                  refreshError
+                    ? "bg-rose-500"
+                    : isRefreshing
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
+                }`}
+                aria-hidden="true"
+              />
+              <span>{refreshError ? refreshError : isRefreshing ? "Refreshing" : "Auto-refresh on"}</span>
+              {lastUpdatedAt && <span>Updated {lastUpdatedAt.toLocaleTimeString()}</span>}
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <svg
+                  className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5M19 5h-5M5 19h5" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+              <SummaryPill label="active" value={counts.active} />
+              <SummaryPill label="ready" value={counts.ready} />
+              <SummaryPill label="blocked" value={counts.blocked} />
+              <SummaryPill label="done" value={counts.done} />
+              <SummaryPill label="unresolved" value={counts.unresolved} />
+            </div>
           </div>
         </div>
       </div>

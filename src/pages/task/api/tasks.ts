@@ -3,6 +3,7 @@ import type { TaskListResponse, TaskTreeResponse, TaskSummary } from "../task-pa
 export interface FetchTasksOptions {
   readonly assignee?: string;
   readonly unassigned?: boolean;
+  readonly signal?: AbortSignal;
 }
 
 export async function fetchTasks(options: FetchTasksOptions = {}): Promise<TaskSummary[]> {
@@ -11,7 +12,7 @@ export async function fetchTasks(options: FetchTasksOptions = {}): Promise<TaskS
   if (options.unassigned) params.set("unassigned", "1");
 
   const query = params.toString();
-  const res = await fetch(`/api/tasks${query ? `?${query}` : ""}`);
+  const res = await fetch(`/api/tasks${query ? `?${query}` : ""}`, { signal: options.signal });
   if (!res.ok) throw new Error("Failed to fetch tasks");
   return ((await res.json()) as TaskListResponse).tasks;
 }
