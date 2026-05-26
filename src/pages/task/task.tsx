@@ -156,14 +156,20 @@ export function TaskPage({ tasks, isRefreshing, refreshError, lastUpdatedAt, onR
 
 function flattenTaskTree(tree: TaskTreeNode[]): FlatTaskRow[] {
   const rows: FlatTaskRow[] = [];
-  const walk = (items: TaskTreeNode[], depth: number) => {
+  const walk = (items: TaskTreeNode[]) => {
     for (const task of items) {
-      rows.push({ task, depth });
-      walk(task.children, depth + 1);
+      rows.push({ task, depth: branchPathDepth(task.branch) });
+      walk(task.children);
     }
   };
-  walk(tree, 0);
+  walk(tree);
   return rows;
+}
+
+function branchPathDepth(branch: string | null): number {
+  if (!branch) return 0;
+  const parts = branch.split("/").filter(Boolean);
+  return Math.max(0, parts.length - 2);
 }
 
 function TaskToolbar({
