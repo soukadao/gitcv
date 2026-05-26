@@ -1,7 +1,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useMemo, useState } from "react";
-import type { TaskEvent, TaskStatus, TaskSummary } from "./task-parse";
+import { buildTaskTree, type TaskEvent, type TaskStatus, type TaskSummary, type TaskTreeNode } from "./task-parse";
 
 interface Props {
   readonly tasks: TaskSummary[];
@@ -36,9 +36,16 @@ const EVENT_STYLE: Record<string, string> = {
 type DoneFilter = "all" | "done" | "not_done";
 type StatusFilter = "all" | TaskStatus;
 type AssigneeFilter = "all" | "unassigned" | string;
+type ActiveTab = "table" | "detail";
+
+interface FlatTaskRow {
+  readonly task: TaskTreeNode;
+  readonly depth: number;
+}
 
 export function TaskPage({ tasks, isRefreshing, refreshError, lastUpdatedAt, onRefresh }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("table");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [doneFilter, setDoneFilter] = useState<DoneFilter>("all");
@@ -70,6 +77,11 @@ export function TaskPage({ tasks, isRefreshing, refreshError, lastUpdatedAt, onR
   const selected = useMemo(
     () => filteredTasks.find((task) => task.id === selectedId) ?? filteredTasks[0] ?? null,
     [filteredTasks, selectedId]
+  );
+
+  const tableRows = useMemo(
+    () => flattenTaskTree(buildTaskTree(filteredTasks)),
+    [filteredTasks]
   );
 
   const counts = useMemo(
@@ -116,12 +128,42 @@ export function TaskPage({ tasks, isRefreshing, refreshError, lastUpdatedAt, onR
         onAssigneeChange={setAssigneeFilter}
         onRefresh={onRefresh}
       />
-      <div className="grid gap-4 lg:grid-cols-[minmax(280px,380px)_1fr] min-h-[70vh]">
-        <TaskList tasks={filteredTasks} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
-        {selected ? <TaskDetail task={selected} /> : <NoFilteredTasks />}
+      <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden">
+        <TaskTabs activeTab={activeTab} onChange={setActiveTab} selected={selected} />
+        <div className="min-h-[70vh]">
+          {activeTab === "table" ? (
+            <TaskManagementTable
+              rows={tableRows}
+              selectedId={selected?.id ?? null}
+              onSelect={(id) => {
+                setSelectedId(id);
+              }}
+              onOpenDetail={(id) => {
+                setSelectedId(id);
+                setActiveTab("detail");
+              }}
+            />
+          ) : selected ? (
+            <TaskDetail task={selected} />
+          ) : (
+            <NoFilteredTasks />
+          )}
+        </div>
       </div>
     </div>
   );
+}
+
+function flattenTaskTree(tree: TaskTreeNode[]): FlatTaskRow[] {
+  const rows: FlatTaskRow[] = [];
+  const walk = (items: TaskTreeNode[], depth: number) => {
+    for (const task of items) {
+      rows.push({ task, depth });
+      walk(task.children, depth + 1);
+    }
+  };
+  walk(tree, 0);
+  return rows;
 }
 
 function TaskToolbar({
@@ -309,54 +351,171 @@ function SummaryPill({ label, value }: { readonly label: string; readonly value:
   );
 }
 
-function TaskList({
-  tasks,
-  selectedId,
-  onSelect,
+function TaskTabs({
+  activeTab,
+  onChange,
+  selected,
 }: {
-  readonly tasks: TaskSummary[];
-  readonly selectedId: string | null;
-  readonly onSelect: (id: string) => void;
+  readonly activeTab: ActiveTab;
+  readonly onChange: (tab: ActiveTab) => void;
+  readonly selected: TaskSummary | null;
 }) {
   return (
-    <aside className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white dark:bg-zinc-900">
-      <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
-        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Branch list</p>
+    <div className="flex flex-col gap-3 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-3 md:flex-row md:items-center md:justify-between">
+      <div className="inline-flex w-fit rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1" role="tablist" aria-label="Task view">
+        <TabButton active={activeTab === "table"} onClick={() => onChange("table")}>
+          Task table
+        </TabButton>
+        <TabButton active={activeTab === "detail"} onClick={() => onChange("detail")}>
+          Detail
+        </TabButton>
       </div>
-      <ol className="max-h-[72vh] overflow-auto divide-y divide-zinc-200 dark:divide-zinc-800">
-        {tasks.map((task) => (
-          <li key={task.id}>
-            <button
-              onClick={() => onSelect(task.id)}
-              className={`block h-24 w-full text-left px-3 py-2.5 transition-colors ${
-                selectedId === task.id
-                  ? "bg-emerald-50 dark:bg-emerald-950/30 shadow-[inset_3px_0_0_rgb(16_185_129)]"
-                  : "hover:bg-zinc-50 dark:hover:bg-zinc-800/70"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">{task.title}</p>
-                  <p className="mt-1 truncate text-[11px] text-zinc-500 dark:text-zinc-400">{task.branch ?? "no branch"}</p>
-                </div>
-                <StatusBadge status={task.status} />
-              </div>
-              <div className="mt-2 flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-                <span className="truncate">{task.assignee ?? "unassigned"}</span>
-                <span>·</span>
-                <DoneBadge done={task.done} />
-                {task.unresolvedRequestCount > 0 && (
-                  <>
-                    <span>·</span>
-                    <span className="text-amber-600 dark:text-amber-300">{task.unresolvedRequestCount} unresolved</span>
-                  </>
-                )}
-              </div>
-            </button>
-          </li>
-        ))}
-      </ol>
-    </aside>
+      <p className="min-w-0 truncate text-xs text-zinc-500 dark:text-zinc-400">
+        Selected: <span className="font-mono text-zinc-700 dark:text-zinc-200">{selected?.branch ?? selected?.id ?? "none"}</span>
+      </p>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  readonly active: boolean;
+  readonly onClick: () => void;
+  readonly children: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`h-8 rounded px-3 text-xs font-medium transition-colors ${
+        active
+          ? "bg-emerald-600 text-white shadow-sm dark:bg-emerald-500 dark:text-zinc-950"
+          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TaskManagementTable({
+  rows,
+  selectedId,
+  onSelect,
+  onOpenDetail,
+}: {
+  readonly rows: FlatTaskRow[];
+  readonly selectedId: string | null;
+  readonly onSelect: (id: string) => void;
+  readonly onOpenDetail: (id: string) => void;
+}) {
+  if (rows.length === 0) return <NoFilteredTasks />;
+
+  return (
+    <div className="overflow-auto max-h-[72vh] overscroll-contain">
+      <table className="min-w-[1040px] w-full border-separate border-spacing-0 text-left text-xs">
+        <thead className="sticky top-0 z-10 bg-zinc-100 dark:bg-zinc-800 text-[11px] uppercase text-zinc-500 dark:text-zinc-400">
+          <tr>
+            <TableHead className="w-[34%]">Task / branch</TableHead>
+            <TableHead className="w-[16%]">Parent</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Done</TableHead>
+            <TableHead>Assignee</TableHead>
+            <TableHead>Requests</TableHead>
+            <TableHead>Updated</TableHead>
+            <TableHead className="text-right">Action</TableHead>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ task, depth }) => (
+            <TaskTableRow
+              key={task.id}
+              task={task}
+              depth={depth}
+              selected={selectedId === task.id}
+              onSelect={onSelect}
+              onOpenDetail={onOpenDetail}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TableHead({ children, className = "" }: { readonly children: string; readonly className?: string }) {
+  return (
+    <th className={`border-b border-zinc-200 dark:border-zinc-700 px-3 py-2 font-semibold ${className}`}>
+      {children}
+    </th>
+  );
+}
+
+function TaskTableRow({
+  task,
+  depth,
+  selected,
+  onSelect,
+  onOpenDetail,
+}: {
+  readonly task: TaskTreeNode;
+  readonly depth: number;
+  readonly selected: boolean;
+  readonly onSelect: (id: string) => void;
+  readonly onOpenDetail: (id: string) => void;
+}) {
+  const parentLabel = task.parent ?? task.parentBranch ?? "root";
+
+  return (
+    <tr
+      className={`group cursor-pointer border-b border-zinc-100 transition-colors dark:border-zinc-800 ${
+        selected
+          ? "bg-emerald-50/80 dark:bg-emerald-950/30"
+          : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/70"
+      }`}
+      onClick={() => onSelect(task.id)}
+    >
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-3 align-top">
+        <div className="grid min-w-0 grid-cols-[auto_1fr] items-start gap-2" style={{ paddingInlineStart: `${depth * 1.25}rem` }}>
+          <span className={`mt-1 h-2 w-2 rounded-full ${depth === 0 ? "bg-zinc-400" : "bg-emerald-500"}`} aria-hidden="true" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{task.title}</p>
+            <p className="mt-1 truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{task.branch ?? task.id}</p>
+          </div>
+        </div>
+      </td>
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-3 align-top">
+        <code className="block max-w-44 truncate rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+          {parentLabel}
+        </code>
+      </td>
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-3 align-top"><StatusBadge status={task.status} /></td>
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-3 align-top"><DoneBadge done={task.done} /></td>
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-3 align-top text-zinc-600 dark:text-zinc-300">{task.assignee ?? "unassigned"}</td>
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-3 align-top">
+        <span className={task.unresolvedRequestCount > 0 ? "font-medium text-amber-700 dark:text-amber-300" : "text-zinc-500 dark:text-zinc-400"}>
+          {task.unresolvedRequestCount}
+        </span>
+      </td>
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-3 align-top text-zinc-500 dark:text-zinc-400">{formatDate(task.updatedAt)}</td>
+      <td className="border-b border-zinc-100 dark:border-zinc-800 px-3 py-2 align-top text-right">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenDetail(task.id);
+          }}
+          className="inline-flex h-8 items-center rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-700 dark:hover:text-emerald-300"
+        >
+          Detail
+        </button>
+      </td>
+    </tr>
   );
 }
 
@@ -372,7 +531,7 @@ function NoFilteredTasks() {
 function TaskDetail({ task }: { readonly task: TaskSummary }) {
   return (
     <section className="min-w-0">
-      <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900 overflow-hidden">
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
